@@ -156,56 +156,66 @@ public:
 		fclose(f);
 	}
 
-void lineIntersectSeg(Vector A, Vector B, Vector l1, Vector l2, Vector &point, bool &f,double w1, double w2) {
+void lineIntersectSeg(Vector A, Vector B, Vector l1, Vector l2, Vector &point, int &f,double w1, double w2) {
 	Vector N = l2 - l1;
 	Vector u = (l1 + l2)/2 + (w1-w2) / (2*(l2-l1).norm2()) * (l2-l1);
 	double t = dot(u - A, N) / dot(B - A, N);
 	point = A + t * (B - A);
-	f = true;
 
 	if ( ( (B-l1).norm2() - w1) <= ( (B-l2).norm2() - w2) ){
 		if (((A - l1).norm2() - w1) > ((A - l2).norm2() - w2)){
-			f=false;
+			f=1;
 		}
+		f=0;
 	}
 	else{
 		if (((A - l1).norm2() - w1) <= ((A - l2).norm2() - w2)){
-			f=false;
+			f=-1;
 		}
+		f = -2;
 	}
 	
 	
 }
 
-Polygon clip_cell_edge(Polygon cell, Vector* points, int js, Vector l1, Vector l2, double w1 = 0.0, double w2 = 0.0){
-	Vector x = points[js];
+Polygon clip_cell_edge(Polygon cell, Vector* points, int js1, int js2, double w1 = 0.0, double w2 = 0.0){
+	
     Polygon res;
     int n = cell.vertices.size();
 	std::vector<Vector> position;
-	std::vector<bool> difside;
+	std::vector<int> difside;
 
 	for (int i=0; i<n; i++){
-		bool f;
+		int f;
 		Vector p;
 
 		int next = i+1;
 		if (i == n-1){
 			next = 0;
 		}
-		lineIntersectSeg(cell.vertices[next],cell.vertices[i], l1,l2,p,f,w1,w2);
-		difside.push_back(f);
-		position.push_back(p);
-    }
+		Vector A,B,l1,l2;
+		A = cell.vertices[i];
+		B = cell.vertices[next];
+		l1 = points[js1];
+		l2 = points[js2];
+		
+		Vector N = l2 - l1;
+		Vector u = (l1 + l2)/2 + (w1-w2) / (2*(l2-l1).norm2()) * (l2-l1);
+		double t = dot(u - A, N) / dot(B - A, N);
+		Vector	point = A + t * (B - A);
 
-	for (int i=0; i<n; i++){
-		if (!difside[i]){
-			res.vertices.push_back(cell.vertices[i]);
+		if ( ( (B-l1).norm2() - w1) <= ( (B-l2).norm2() - w2) ){
+			if (((A - l1).norm2() - w1) > ((A - l2).norm2() - w2)){
+				res.vertices.push_back(point);
+			}
+			res.vertices.push_back(B);
 		}
 		else{
-			res.vertices.push_back(position[i]);
-
+			if (((A - l1).norm2() - w1) <= ((A - l2).norm2() - w2)){
+				res.vertices.push_back(point);
+			}
 		}
-    }
+	}
 
 	return res;
 }
@@ -240,10 +250,7 @@ Polygon add_cell(Vector* points, int n, int js, const double* w){
         //Vector line_begin = (points[i] + points[js])/2;
         //Vector line_end = xuanzhuan_pi_2(points[i],line_begin);
 
-        Vector line_begin = points[js];
-        Vector line_end = points[i];
-
-        res = clip_cell_edge(res,&points[0],js,line_begin,line_end,w1,w2);
+        res = clip_cell_edge(res,&points[0],js,i,w1,w2);
    }
 
 	
@@ -287,7 +294,7 @@ static lbfgsfloatval_t evaluate(
 
 int main(){
 	
-	int num_points = 20;
+	int num_points = 300;
 	std::vector<Vector> points(num_points);
 	std::vector<double> w(num_points);
 	for (int i = 0; i < num_points; i++) 
@@ -298,17 +305,18 @@ int main(){
 		}
 		points[i][2] = 0;
 
-		w[i] = 0.5;
+		w[i] = 0;
 	}
 
-	/**
+	
 
 	lbfgs_parameter_t param;
+	lbfgs_parameter_init(&param);
     param.linesearch = LBFGS_LINESEARCH_BACKTRACKING;
 	double fx;
 	
 	int ret = lbfgs(num_points, &w[0], &fx, evaluate, NULL, &points[0], &param);
-	**/
+	
 
 	std::vector<Polygon> diagram = voronoi_diagram(num_points, &points[0],&w[0]);
 	save_svg(diagram, "diagram.svg");
